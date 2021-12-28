@@ -2,6 +2,7 @@ package comp
 
 import (
 	"fmt"
+	"strings"
 )
 
 var (
@@ -18,6 +19,7 @@ func init() {
 	FuncLi = make(map[string]CompMark)
 }
 
+//注册函数
 func RegisterComp(name string, f CompMark) {
 	FuncLi[name] = f
 }
@@ -34,78 +36,56 @@ func NewCompNode(exp string) *CompNode {
 	return result
 }
 
-type CompMark func(node *CompNode, arr []int64) int64
+type CompMark func(node *CompNode, et *CompEvent) int64
 
 //计算对象
 type CompNode struct {
-	Var  string    //值
+	Obj  string    //对象
+	Var  string    //属性（变量）
 	Val  int64     //值数据
 	Num1 *CompNode //数据1
 	Mark string    //运算符号
 	Num2 *CompNode //数据2
 }
 
-//循环计算
-func (cn *CompNode) CompVal(param []int64) int64 {
-
-	if cn.Mark != "" {
-		return cn.markComp(param)
-	} else {
-		return cn.getVal(param)
-	}
-	// } else if cn.Mark == "+" || cn.Mark == "-" || cn.Mark == "*" || cn.Mark == "/" {
-	// 	return "(" + cn.Num1.String() + " " + cn.Mark + " " + cn.Num2.String() + ")"
-	// } else {
-	// 	return cn.Mark + "(" + cn.Num1.String() + "," + cn.Num2.String() + ")"
-	// }
-}
-
 func (cn *CompNode) String() string {
-	if cn.Var != "" {
-		return cn.Var
-	} else if cn.Mark == "+" || cn.Mark == "-" || cn.Mark == "*" || cn.Mark == "/" || cn.Mark == "%" {
+	if cn.Mark == "+" || cn.Mark == "-" || cn.Mark == "*" || cn.Mark == "/" || cn.Mark == "%" {
 		return "(" + cn.Num1.String() + " " + cn.Mark + " " + cn.Num2.String() + ")"
+	} else if cn.Mark == "." {
+		return cn.Obj + "." + cn.Var
 	} else if cn.Mark != "" {
 		return cn.Mark + "(" + cn.Num1.String() + "," + cn.Num2.String() + ")"
+	} else if cn.Var != "" {
+		return cn.Var
 	} else {
 		return fmt.Sprint(cn.Val)
 	}
 }
 
-func (cn *CompNode) markComp(arr []int64) (result int64) {
+//循环计算
+func (cn *CompNode) CompVal(et *CompEvent) (result int64) {
 	switch cn.Mark {
+	case "":
+		result = et.GetVal(cn)
+	case ".":
+		result = et.GetObjAttr(cn)
 	case "+":
-		result = cn.Num1.CompVal(arr) + cn.Num2.CompVal(arr)
+		result = cn.Num1.CompVal(et) + cn.Num2.CompVal(et)
 	case "-":
-		result = cn.Num1.CompVal(arr) - cn.Num2.CompVal(arr)
+		result = cn.Num1.CompVal(et) - cn.Num2.CompVal(et)
 	case "*":
-		result = cn.Num1.CompVal(arr) * cn.Num2.CompVal(arr)
+		result = cn.Num1.CompVal(et) * cn.Num2.CompVal(et)
 	case "/":
-		result = cn.Num1.CompVal(arr) / cn.Num2.CompVal(arr)
+		result = cn.Num1.CompVal(et) / cn.Num2.CompVal(et)
 	case "%":
-		result = cn.Num1.CompVal(arr) % cn.Num2.CompVal(arr)
+		result = cn.Num1.CompVal(et) % cn.Num2.CompVal(et)
 	default:
 		if f, ok := FuncLi[cn.Mark]; ok {
 			//找到函数
-			result = f(cn, arr)
+			result = f(cn, et)
 		} else {
 			fmt.Println(" CompNode Error. Not exist Func ", cn.Mark, ". on CompNode:", cn)
 		}
-	}
-	return
-}
-
-//拿到值
-func (cn *CompNode) getVal(arr []int64) (result int64) {
-	//使用a,b,c,d,e,f,g来定义变量，所以a对应的就是数组索引0，依次类推
-	if cn.Var != "" {
-		//是变量
-		i := int(cn.Var[0] - Coust_a) //拿到变量索引
-		if len(arr) > i {
-			result = arr[i]
-		}
-	} else {
-		result = cn.Val
 	}
 	return
 }
@@ -152,6 +132,11 @@ func newComp(v string) *CompNode {
 	result := new(CompNode)
 	if t, ok := NewString(v).ToInt64(); ok == nil {
 		result.Val = t
+	} else if index := strings.IndexRune(v, '.'); index >= 0 {
+		//对象的属性变量
+		result.Obj = v[:index]
+		result.Var = v[index+1:]
+		result.Mark = "."
 	} else {
 		result.Var = v
 	}
